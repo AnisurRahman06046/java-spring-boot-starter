@@ -2,6 +2,8 @@ package com.taskmanager.taskmanager.task;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 public class TaskService {
     private final TaskRepository taskRepository;
     private final AuthUtils authUtils;
+    private static final Logger log = LoggerFactory.getLogger(TaskService.class);
 
     // map entity to dto
     private TaskResponse toResponse(Task task) {
@@ -57,6 +60,8 @@ public class TaskService {
 
     public PageResponse<TaskResponse> getAllTasks(TaskFilterRequest filter) {
         User currentUser = authUtils.getCurrentUser();
+        log.debug("Fetching tasks for user={} role={} filter={}",
+                currentUser.getEmail(), currentUser.getRole(), filter.getStatus());
 
         if (!ALLOWED_SORT_FIELDS.contains(filter.getSortBy())) {
             filter.setSortBy("createdAt"); // fallback to default
@@ -77,6 +82,7 @@ public class TaskService {
 
     public TaskResponse getTaskById(Long id) {
         User currentUser = authUtils.getCurrentUser();
+
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
 
@@ -88,6 +94,7 @@ public class TaskService {
 
     public TaskResponse createTask(TaskRequest request) {
         User currentUser = authUtils.getCurrentUser();
+        log.info("Creating task title='{}' for user={}", request.getTitle(), currentUser.getEmail());
         Task task = Task.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -122,5 +129,6 @@ public class TaskService {
             throw new UnauthorizedException("You do not have permission to delete this task");
         }
         taskRepository.deleteById(id);
+        log.info("Task deleted id={} by user={}", id, currentUser.getEmail());
     }
 }
