@@ -14,6 +14,8 @@ public class TaskResponse {
     private String title;
     private String description;
     private TaskStatus status;
+    private String userEmail;
+    private String userName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
