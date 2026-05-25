@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.taskmanager.taskmanager.common.ApiResponse;
+import com.taskmanager.taskmanager.common.PageResponse;
+import com.taskmanager.taskmanager.task.dto.TaskFilterRequest;
 import com.taskmanager.taskmanager.task.dto.TaskRequest;
 import com.taskmanager.taskmanager.task.dto.TaskResponse;
 
@@ -29,15 +32,17 @@ public class TaskController {
     private final TaskService taskService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<TaskResponse>>> getAllTasks() {
-        List<TaskResponse> tasks = taskService.getAllTasks();
+    public ResponseEntity<ApiResponse<PageResponse<TaskResponse>>> getAllTasks(
+            @ModelAttribute TaskFilterRequest filter) {
+        PageResponse<TaskResponse> tasks = taskService.getAllTasks(filter);
         return ResponseEntity.ok(ApiResponse.success("Tasks fetched successfully", tasks));
     }
 
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')") // ← only allow admins to access this endpoint
-    public ResponseEntity<ApiResponse<List<TaskResponse>>> getAllTasksAdmin() {
-        List<TaskResponse> tasks = taskService.getAllTasks();
+    public ResponseEntity<ApiResponse<PageResponse<TaskResponse>>> getAllTasksAdmin(
+            @ModelAttribute TaskFilterRequest filter) {
+        PageResponse<TaskResponse> tasks = taskService.getAllTasks(filter);
         return ResponseEntity.ok(ApiResponse.success("All tasks fetched successfully", tasks));
     }
 
