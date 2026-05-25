@@ -1,7 +1,10 @@
 package com.taskmanager.taskmanager.config;
 
-import java.io.IOException;
-
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -9,53 +12,42 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.taskmanager.taskmanager.user.UserRepository;
+import java.io.IOException;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
-
-@RequiredArgsConstructor
 @Component
+@RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UserRepository userRepository;
-
-    // public JwtAuthFilter(JwtService jwtService, UserRepository userRepository){
-    //     this.jwtService=jwtService;
-    //     this.userRepository=userRepository;
-    // }
+    private final UserDetailsServiceImpl userDetailsService; // ← changed from UserRepository
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response, FilterChain filterChain) throws ServletException,IOException{
+    protected void doFilterInternal(HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain)
+            throws ServletException, IOException {
+
         String authHeader = request.getHeader("Authorization");
 
-        if(authHeader==null || !authHeader.startsWith("Bearer ")){
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token  = authHeader.substring(7);
-
-        // extract email
+        String token = authHeader.substring(7);
         String email = jwtService.extractEmail(token);
 
-        if(email!=null && SecurityContextHolder.getContext().getAuthentication()==null){
-            UserDetails userDetails = userRepository.findByEmail(email).orElse(null);
+        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-            // validate the token 
-            if(userDetails!=null && jwtService.isTokenValid(token, userDetails)){
-                // tell spring security this user is authenticated
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails,null, userDetails.getAuthorities());
-
+            if (jwtService.isTokenValid(token, userDetails)) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails, null, userDetails.getAuthorities());
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
-
         }
+
         filterChain.doFilter(request, response);
     }
 }
