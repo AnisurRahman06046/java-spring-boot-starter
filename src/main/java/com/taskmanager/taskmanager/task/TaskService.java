@@ -18,19 +18,21 @@ import com.taskmanager.taskmanager.exception.UnauthorizedException;
 import com.taskmanager.taskmanager.task.dto.TaskFilterRequest;
 import com.taskmanager.taskmanager.task.dto.TaskRequest;
 import com.taskmanager.taskmanager.task.dto.TaskResponse;
-import com.taskmanager.taskmanager.user.Role;
 import com.taskmanager.taskmanager.user.User;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor // auto generates constructor for final fields by lombork
+@RequiredArgsConstructor
 public class TaskService {
+
     private final TaskRepository taskRepository;
     private final AuthUtils authUtils;
     private static final Logger log = LoggerFactory.getLogger(TaskService.class);
 
-    // map entity to dto
+    private static final List<String> ALLOWED_SORT_FIELDS = List.of("createdAt", "updatedAt", "title", "status");
+
+    // ─── Map Entity → DTO ──────────────────────────────────────────────
     private TaskResponse toResponse(Task task) {
         return TaskResponse.builder()
                 .id(task.getId())
@@ -56,45 +58,63 @@ public class TaskService {
                 .build();
     }
 
-    private static final List<String> ALLOWED_SORT_FIELDS = List.of("createdAt", "updatedAt", "title", "status");
-
-    public PageResponse<TaskResponse> getAllTasks(TaskFilterRequest filter) {
-        User currentUser = authUtils.getCurrentUser();
-        log.debug("Fetching tasks for user={} role={} filter={}",
-                currentUser.getEmail(), currentUser.getRole(), filter.getStatus());
-
-        if (!ALLOWED_SORT_FIELDS.contains(filter.getSortBy())) {
-            filter.setSortBy("createdAt"); // fallback to default
-        }
-        Sort sort = filter.getSortBy().equalsIgnoreCase("asc") ? Sort.by(filter.getSortBy()).ascending()
-                : Sort.by(filter.getSortBy()).descending();
-        Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), sort);
-        Specification<Task> spec = Specification.where(TaskSpecification.hasStatus(filter.getStatus()))
-                .and(TaskSpecification.titleOrDescriptionContains(filter.getKeyword()));
-        if (currentUser.getRole() == Role.ADMIN) {
-            spec = spec.and(TaskSpecification.hasUser(currentUser.getId()));
-
-        }
-        Page<Task> result = taskRepository.findAll(spec, pageable);
-        return toPageResponse(result);
-
+    // ─── Helper: check if user is privileged (SUPER_ADMIN or ADMIN) ───
+    // Replaces the old: currentUser.getRole() == Role.ADMIN
+    private boolean isPrivileged(User user) {
+        return user.hasRole("SUPER_ADMIN") || user.hasRole("ADMIN");
     }
 
+    // ─── GET ALL (paginated + filtered) ───────────────────────────────
+    public PageResponse<TaskResponse> getAllTasks(TaskFilterRequest filter) {
+        User currentUser = authUtils.getCurrentUser();
+        log.debug("Fetching tasks for user={} roles={} filter={}",
+                currentUser.getEmail(),
+                currentUser.getRoles().stream()
+                        .map(r -> r.getName()).toList(),
+                filter.getStatus());
+
+        if (!ALLOWED_SORT_FIELDS.contains(filter.getSortBy())) {
+            filter.setSortBy("createdAt");
+        }
+
+        Sort sort = filter.getSortDir().equalsIgnoreCase("asc")
+                ? Sort.by(filter.getSortBy()).ascending()
+                : Sort.by(filter.getSortBy()).descending();
+
+        Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), sort);
+
+        Specification<Task> spec = Specification
+                .where(TaskSpecification.hasStatus(filter.getStatus()))
+                .and(TaskSpecification.titleOrDescriptionContains(filter.getKeyword()));
+
+        // Privileged users see all tasks; regular users see only their own
+        if (!isPrivileged(currentUser)) {
+            spec = spec.and(TaskSpecification.hasUser(currentUser.getId()));
+        }
+
+        Page<Task> result = taskRepository.findAll(spec, pageable);
+        log.debug("Found {} tasks for user={}", result.getTotalElements(), currentUser.getEmail());
+        return toPageResponse(result);
+    }
+
+    // ─── GET BY ID ─────────────────────────────────────────────────────
     public TaskResponse getTaskById(Long id) {
         User currentUser = authUtils.getCurrentUser();
-
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
 
-        if (!task.getUser().getId().equals(currentUser.getId()) && currentUser.getRole() != Role.ADMIN) {
+        if (!task.getUser().getId().equals(currentUser.getId()) && !isPrivileged(currentUser)) {
             throw new UnauthorizedException("You do not have permission to access this task");
         }
+
         return toResponse(task);
     }
 
+    // ─── CREATE ────────────────────────────────────────────────────────
     public TaskResponse createTask(TaskRequest request) {
         User currentUser = authUtils.getCurrentUser();
         log.info("Creating task title='{}' for user={}", request.getTitle(), currentUser.getEmail());
+
         Task task = Task.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -102,18 +122,21 @@ public class TaskService {
                 .user(currentUser)
                 .build();
 
-        return toResponse(taskRepository.save(task));
-
+        Task saved = taskRepository.save(task);
+        log.info("Task created id={} for user={}", saved.getId(), currentUser.getEmail());
+        return toResponse(saved);
     }
 
+    // ─── UPDATE ────────────────────────────────────────────────────────
     public TaskResponse updateTask(Long id, TaskRequest request) {
         User currentUser = authUtils.getCurrentUser();
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
 
-        if (!task.getUser().getId().equals(currentUser.getId()) && currentUser.getRole() != Role.ADMIN) {
+        if (!task.getUser().getId().equals(currentUser.getId()) && !isPrivileged(currentUser)) {
             throw new UnauthorizedException("You do not have permission to update this task");
         }
+
         task.setTitle(request.getTitle());
         task.setDescription(request.getDescription());
         task.setStatus(request.getStatus());
@@ -121,13 +144,16 @@ public class TaskService {
         return toResponse(taskRepository.save(task));
     }
 
+    // ─── DELETE ────────────────────────────────────────────────────────
     public void deleteTask(Long id) {
         User currentUser = authUtils.getCurrentUser();
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
-        if (!task.getUser().getId().equals(currentUser.getId()) && currentUser.getRole() != Role.ADMIN) {
+
+        if (!task.getUser().getId().equals(currentUser.getId()) && !isPrivileged(currentUser)) {
             throw new UnauthorizedException("You do not have permission to delete this task");
         }
+
         taskRepository.deleteById(id);
         log.info("Task deleted id={} by user={}", id, currentUser.getEmail());
     }
