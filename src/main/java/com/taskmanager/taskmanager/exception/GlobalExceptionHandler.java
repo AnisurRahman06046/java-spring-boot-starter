@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.taskmanager.taskmanager.common.ApiError;
 
@@ -62,10 +63,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError.of(400, message));
     }
 
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxSize(MaxUploadSizeExceededException ex){
+        log.warn("Request size exceeded limit");
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(ApiError.of(413, "Request size exceeds maximum allowed limit"));
+    }
+    
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleAll(Exception ex) {
         ex.printStackTrace();
-        ;
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiError.of(500, "An unexpected error occurred. Please try again later."));
     }

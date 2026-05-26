@@ -4,10 +4,11 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
-
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -44,6 +45,7 @@ public class User implements UserDetails {
     @Column(nullable=false)
     private String password;
 
+    @JsonIgnore
     @Column(nullable=false)
     private String name;
 
@@ -60,7 +62,9 @@ public class User implements UserDetails {
         if(role==null) role = Role.USER;
     }
 
+
     @Override
+    @JsonIgnore
     public Collection<? extends GrantedAuthority> getAuthorities(){
         return List.of(new SimpleGrantedAuthority("ROLE_"+role.name()));
     }
@@ -71,14 +75,18 @@ public class User implements UserDetails {
     }
 
     @Override
+    @JsonIgnore
     public boolean isAccountNonExpired(){return true;}
 
     @Override
+    @JsonIgnore
     public boolean isAccountNonLocked(){return true;}
 
     @Override
+    @JsonIgnore
     public boolean isCredentialsNonExpired(){return true;}
 
     @Override
+    @JsonIgnore
     public boolean isEnabled(){return true;}
 }
