@@ -32,6 +32,7 @@ public class TaskController {
     private final TaskService taskService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('TASK:READ')")
     public ResponseEntity<ApiResponse<PageResponse<TaskResponse>>> getAllTasks(
             @ModelAttribute TaskFilterRequest filter) {
         PageResponse<TaskResponse> tasks = taskService.getAllTasks(filter);
@@ -39,7 +40,7 @@ public class TaskController {
     }
 
     @GetMapping("/admin/all")
-    @PreAuthorize("hasRole('ADMIN')") // ← only allow admins to access this endpoint
+    @PreAuthorize("hasAuthority('TASK:READ')")
     public ResponseEntity<ApiResponse<PageResponse<TaskResponse>>> getAllTasksAdmin(
             @ModelAttribute TaskFilterRequest filter) {
         PageResponse<TaskResponse> tasks = taskService.getAllTasks(filter);
@@ -47,18 +48,21 @@ public class TaskController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('TASK:READ')")
     public ResponseEntity<ApiResponse<TaskResponse>> getTaskById(@PathVariable Long id) {
         TaskResponse task = taskService.getTaskById(id);
         return ResponseEntity.ok(ApiResponse.success("Task fetched successfully", task));
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('TASK:CREATE')")
     public ResponseEntity<ApiResponse<TaskResponse>> createTask(@Valid @RequestBody TaskRequest request) {
         TaskResponse task = taskService.createTask(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Task created successfully", task));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('TASK:UPDATE')")
     public ResponseEntity<ApiResponse<TaskResponse>> updateTask(@PathVariable Long id,
             @Valid @RequestBody TaskRequest request) {
         TaskResponse task = taskService.updateTask(id, request);
@@ -66,6 +70,7 @@ public class TaskController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('TASK:DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteTask(@PathVariable Long id) {
         taskService.deleteTask(id);
         return ResponseEntity.ok(ApiResponse.success("Task deleted successfully"));
