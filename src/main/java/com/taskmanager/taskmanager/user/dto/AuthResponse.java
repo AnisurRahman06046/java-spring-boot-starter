@@ -1,13 +1,15 @@
 package com.taskmanager.taskmanager.user.dto;
 
+import java.util.Set;
+
 import lombok.Builder;
 import lombok.Getter;
-import java.util.Set;
 
 @Getter
 @Builder
 public class AuthResponse {
-    private String token;
+    private String accessToken;
+    private String refreshToken;
     private String name;
     private String email;
     private Set<String> roles; // e.g. ["USER", "MANAGER"]
