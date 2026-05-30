@@ -13,7 +13,7 @@
 
 </div>
 
-## ⚡ 10-Second Summary (For Recruiters)
+## ⚡ 10-Second Summary 
 
 A **secure backend system** implementing:
 * **JWT Authentication** + Refresh Token Rotation  
@@ -90,15 +90,13 @@ Most backend projects stop at standard "login + CRUD." This system goes further:
        ▼
 [ PostgreSQL / MySQL Database ]
 
+```
 
-Key principles:
+## Key principles:
 - Separation of concerns
 - Stateless authentication
 - Defense in depth
 - Fail-safe security design
-
----
-
 ## 🚀 Production Readiness
 
 This system is designed for **real-world deployment**, including:
@@ -109,7 +107,7 @@ This system is designed for **real-world deployment**, including:
 - Observability and debugging support
 - Scalable architecture foundation
 
----
+
 
 ## 🛠️ Tech Stack
 
@@ -120,7 +118,7 @@ This system is designed for **real-world deployment**, including:
 - **Build Tool:** Maven / Gradle  
 - **Logging:** SLF4J + Structured Logging  
 
----
+
 
 ## 📈 Future Improvements (Roadmap)
 
@@ -132,4 +130,3 @@ This system is designed for **real-world deployment**, including:
 - Multi-tenant support
 - Audit logging system
 
----
