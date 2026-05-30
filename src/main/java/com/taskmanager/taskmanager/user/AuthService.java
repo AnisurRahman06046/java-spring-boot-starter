@@ -1,5 +1,6 @@
 package com.taskmanager.taskmanager.user;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -23,6 +24,7 @@ import com.taskmanager.taskmanager.user.dto.AuthResponse;
 import com.taskmanager.taskmanager.user.dto.LoginRequest;
 import com.taskmanager.taskmanager.user.dto.RegisterRequest;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -37,11 +39,12 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final RoleRepository roleRepository;
     private final RefreshTokenService refreshTokenService;
+    private static final String DUMMY_HASH = "$2a$10$dummyhashusedtopreventtimingattacksxxxxxxxxxxxxxxxxxxxxx";
 
     // ─── Build response ────────────────────────────────────────────────
     private AuthResponse buildAuthResponse(User user,
-                                           String accessToken,
-                                           String refreshToken) {
+            String accessToken,
+            String refreshToken) {
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
@@ -56,14 +59,14 @@ public class AuthService {
 
     // ─── Register ──────────────────────────────────────────────────────
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("Email is already registered");
         }
 
         Role userRole = roleRepository.findByName("USER")
                 .orElseThrow(() -> new BadRequestException(
-                    "Default role not found. Contact admin."));
+                        "Default role not found. Contact admin."));
 
         User user = User.builder()
                 .name(request.getName())
@@ -76,38 +79,61 @@ public class AuthService {
         log.info("User registered: {}", user.getEmail());
 
         String accessToken = jwtService.generateToken(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+        String userAgent = httpRequest.getHeader("User-Agent");
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, userAgent);
 
         return buildAuthResponse(user, accessToken, refreshToken.getToken());
     }
 
     // ─── Login ─────────────────────────────────────────────────────────
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
         try {
             authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                    request.getEmail(), request.getPassword()
-                )
-            );
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(), request.getPassword()));
         } catch (Exception e) {
-            log.warn("Failed login attempt for email={}", request.getEmail());
+            passwordEncoder.matches("dummy", DUMMY_HASH);
+            // log.warn("Failed login attempt for email={}", request.getEmail());
+            if (user != null) {
+                handleFailedLogin(user);
+            }
             throw new UnauthorizedException("Invalid credentials");
         }
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new UnauthorizedException("User not found"));
+        if (user != null && user.isAccountLocked()) {
+            throw new UnauthorizedException("Account is locked due to too many failed attempts. Try again later.");
+        }
+        if (user != null && user.getFailedLoginAttempts() > 0) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
 
         String accessToken = jwtService.generateToken(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, httpRequest.getHeader("User-Agent"));
 
         log.info("User logged in: {}", user.getEmail());
         return buildAuthResponse(user, accessToken, refreshToken.getToken());
     }
 
+    private void handleFailedLogin(User user) {
+        int attempts = user.getFailedLoginAttempts() + 1;
+        user.setFailedLoginAttempts(attempts);
+        if (attempts >= 5) {
+            // lock for 15 mins after 5 attempts
+            user.setLockedUntil(LocalDateTime.now().plusMinutes(15));
+            log.warn("Account locked for user={} after {} failed attempts",
+                    user.getEmail(), attempts);
+        }
+        userRepository.save(user);
+    }
+
     // ─── Refresh ───────────────────────────────────────────────────────
     @Transactional
-    public AuthResponse refresh(String refreshTokenStr) {
+    public AuthResponse refresh(String refreshTokenStr, HttpServletRequest httpRequest) {
         // Validate the incoming refresh token
         RefreshToken refreshToken = refreshTokenService
                 .validateRefreshToken(refreshTokenStr);
@@ -116,7 +142,7 @@ public class AuthService {
 
         // Rotate — revoke old token, issue new one
         RefreshToken newRefreshToken = refreshTokenService
-                .rotateRefreshToken(refreshToken);
+                .rotateRefreshToken(refreshToken, httpRequest.getHeader("User-Agent"));
 
         // Issue new access token
         String newAccessToken = jwtService.generateToken(user);

@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -64,11 +65,19 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ApiError> handleMaxSize(MaxUploadSizeExceededException ex){
+    public ResponseEntity<ApiError> handleMaxSize(MaxUploadSizeExceededException ex) {
         log.warn("Request size exceeded limit");
-        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(ApiError.of(413, "Request size exceeds maximum allowed limit"));
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(ApiError.of(413, "Request size exceeds maximum allowed limit"));
     }
-    
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadable(HttpMessageNotReadableException ex) {
+        log.warn("Unreadable request body: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiError.of(400, "Invalid or malformed request body"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleAll(Exception ex) {
         ex.printStackTrace();

@@ -41,6 +41,10 @@ public class User implements UserDetails {
     @Builder.Default
     private boolean enabled = true;
 
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+    private LocalDateTime lockedUntil;
+
     // User ↔ Role (many-to-many)
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
@@ -115,6 +119,10 @@ public class User implements UserDetails {
     @JsonIgnore
     public boolean isCredentialsNonExpired() {
         return true;
+    }
+
+    public boolean isAccountLocked() {
+        return lockedUntil != null && LocalDateTime.now().isBefore(lockedUntil);
     }
 
     @Override
