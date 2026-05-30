@@ -25,11 +25,12 @@ public class JwtService {
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()
                 .subject(userDetails.getUsername())
+                .issuer("taskmanager-api") // ← add issuer
+                .audience().add("taskmanager-client").and() // ← add audience
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(getSigninKey())
                 .compact();
-
     }
 
     // extract email from token
