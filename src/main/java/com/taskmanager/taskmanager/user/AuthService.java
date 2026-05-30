@@ -24,6 +24,7 @@ import com.taskmanager.taskmanager.user.dto.AuthResponse;
 import com.taskmanager.taskmanager.user.dto.LoginRequest;
 import com.taskmanager.taskmanager.user.dto.RegisterRequest;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -58,7 +59,7 @@ public class AuthService {
 
     // ─── Register ──────────────────────────────────────────────────────
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("Email is already registered");
         }
@@ -78,14 +79,15 @@ public class AuthService {
         log.info("User registered: {}", user.getEmail());
 
         String accessToken = jwtService.generateToken(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+        String userAgent = httpRequest.getHeader("User-Agent");
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, userAgent);
 
         return buildAuthResponse(user, accessToken, refreshToken.getToken());
     }
 
     // ─── Login ─────────────────────────────────────────────────────────
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
         try {
@@ -111,7 +113,7 @@ public class AuthService {
         }
 
         String accessToken = jwtService.generateToken(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, httpRequest.getHeader("User-Agent"));
 
         log.info("User logged in: {}", user.getEmail());
         return buildAuthResponse(user, accessToken, refreshToken.getToken());
@@ -131,7 +133,7 @@ public class AuthService {
 
     // ─── Refresh ───────────────────────────────────────────────────────
     @Transactional
-    public AuthResponse refresh(String refreshTokenStr) {
+    public AuthResponse refresh(String refreshTokenStr, HttpServletRequest httpRequest) {
         // Validate the incoming refresh token
         RefreshToken refreshToken = refreshTokenService
                 .validateRefreshToken(refreshTokenStr);
@@ -140,7 +142,7 @@ public class AuthService {
 
         // Rotate — revoke old token, issue new one
         RefreshToken newRefreshToken = refreshTokenService
-                .rotateRefreshToken(refreshToken);
+                .rotateRefreshToken(refreshToken, httpRequest.getHeader("User-Agent"));
 
         // Issue new access token
         String newAccessToken = jwtService.generateToken(user);

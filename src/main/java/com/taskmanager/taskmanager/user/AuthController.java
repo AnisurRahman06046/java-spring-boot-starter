@@ -14,6 +14,7 @@ import com.taskmanager.taskmanager.user.dto.AuthResponse;
 import com.taskmanager.taskmanager.user.dto.LoginRequest;
 import com.taskmanager.taskmanager.user.dto.RegisterRequest;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -26,23 +27,23 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
-            @Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
+            @Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+        AuthResponse response = authService.register(request, httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Registered successfully", response));
     }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
-            @Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
+            @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        AuthResponse response = authService.login(request, httpRequest);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(
-            @Valid @RequestBody RefreshTokenRequest request) {
-        AuthResponse response = authService.refresh(request.getRefreshToken());
+            @Valid @RequestBody RefreshTokenRequest request, HttpServletRequest httpRequest) {
+        AuthResponse response = authService.refresh(request.getRefreshToken(), httpRequest);
         return ResponseEntity.ok(ApiResponse.success("Token refreshed", response));
     }
 

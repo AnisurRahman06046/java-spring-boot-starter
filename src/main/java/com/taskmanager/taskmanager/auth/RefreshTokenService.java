@@ -30,7 +30,7 @@ public class RefreshTokenService {
 
     // ─── Create and store a new refresh token ─────────────────────────
     @Transactional
-    public RefreshToken createRefreshToken(User user) {
+    public RefreshToken createRefreshToken(User user, String userAgent) {
 
         // Enforce max sessions — revoke oldest if limit exceeded
         long activeTokens = refreshTokenRepository.countByUserAndRevokedFalse(user);
@@ -41,9 +41,10 @@ public class RefreshTokenService {
         }
 
         RefreshToken refreshToken = RefreshToken.builder()
-                .token(UUID.randomUUID().toString())  // random, unguessable
+                .token(UUID.randomUUID().toString()) // random, unguessable
                 .user(user)
                 .expiresAt(Instant.now().plusMillis(refreshExpirationMs))
+                .userAgent(userAgent)
                 .build();
 
         return refreshTokenRepository.save(refreshToken);
@@ -61,7 +62,7 @@ public class RefreshTokenService {
             // Security: revoke ALL tokens for this user
             refreshTokenRepository.deleteByUser(refreshToken.getUser());
             throw new UnauthorizedException(
-                "Refresh token was revoked. Please login again.");
+                    "Refresh token was revoked. Please login again.");
         }
 
         if (refreshToken.isExpired()) {
@@ -74,13 +75,13 @@ public class RefreshTokenService {
 
     // ─── Rotate token — revoke old, issue new (security best practice)
     @Transactional
-    public RefreshToken rotateRefreshToken(RefreshToken oldToken) {
+    public RefreshToken rotateRefreshToken(RefreshToken oldToken, String userAgent) {
         // Mark old token as revoked
         oldToken.setRevoked(true);
         refreshTokenRepository.save(oldToken);
 
         // Issue brand new token
-        return createRefreshToken(oldToken.getUser());
+        return createRefreshToken(oldToken.getUser(), userAgent);
     }
 
     // ─── Logout — revoke all tokens for user ──────────────────────────

@@ -36,6 +36,9 @@ public class RefreshToken {
     @Column(nullable = false, unique = true)
     private String token;
 
+    @Column(name = "user_agent")
+    private String userAgent;
+
     // Which user this token belongs to
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
