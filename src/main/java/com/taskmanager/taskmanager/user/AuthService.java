@@ -1,5 +1,6 @@
 package com.taskmanager.taskmanager.user;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -85,24 +86,47 @@ public class AuthService {
     // ─── Login ─────────────────────────────────────────────────────────
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             request.getEmail(), request.getPassword()));
         } catch (Exception e) {
             passwordEncoder.matches("dummy", DUMMY_HASH);
-            log.warn("Failed login attempt for email={}", request.getEmail());
+            // log.warn("Failed login attempt for email={}", request.getEmail());
+            if (user != null) {
+                handleFailedLogin(user);
+            }
             throw new UnauthorizedException("Invalid credentials");
         }
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new UnauthorizedException("User not found"));
+        if (user != null && user.isAccountLocked()) {
+            throw new UnauthorizedException("Account is locked due to too many failed attempts. Try again later.");
+        }
+        if (user != null && user.getFailedLoginAttempts() > 0) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
 
         String accessToken = jwtService.generateToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
         log.info("User logged in: {}", user.getEmail());
         return buildAuthResponse(user, accessToken, refreshToken.getToken());
+    }
+
+    private void handleFailedLogin(User user) {
+        int attempts = user.getFailedLoginAttempts() + 1;
+        user.setFailedLoginAttempts(attempts);
+        if (attempts >= 5) {
+            // lock for 15 mins after 5 attempts
+            user.setLockedUntil(LocalDateTime.now().plusMinutes(15));
+            log.warn("Account locked for user={} after {} failed attempts",
+                    user.getEmail(), attempts);
+        }
+        userRepository.save(user);
     }
 
     // ─── Refresh ───────────────────────────────────────────────────────
