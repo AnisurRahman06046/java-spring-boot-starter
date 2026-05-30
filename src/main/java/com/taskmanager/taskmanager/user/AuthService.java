@@ -37,11 +37,12 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final RoleRepository roleRepository;
     private final RefreshTokenService refreshTokenService;
+    private static final String DUMMY_HASH = "$2a$10$dummyhashusedtopreventtimingattacksxxxxxxxxxxxxxxxxxxxxx";
 
     // ─── Build response ────────────────────────────────────────────────
     private AuthResponse buildAuthResponse(User user,
-                                           String accessToken,
-                                           String refreshToken) {
+            String accessToken,
+            String refreshToken) {
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
@@ -63,7 +64,7 @@ public class AuthService {
 
         Role userRole = roleRepository.findByName("USER")
                 .orElseThrow(() -> new BadRequestException(
-                    "Default role not found. Contact admin."));
+                        "Default role not found. Contact admin."));
 
         User user = User.builder()
                 .name(request.getName())
@@ -86,11 +87,10 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         try {
             authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                    request.getEmail(), request.getPassword()
-                )
-            );
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(), request.getPassword()));
         } catch (Exception e) {
+            passwordEncoder.matches("dummy", DUMMY_HASH);
             log.warn("Failed login attempt for email={}", request.getEmail());
             throw new UnauthorizedException("Invalid credentials");
         }
